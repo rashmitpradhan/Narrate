@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Narrate – AI Audiobook Studio</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+/* ═══════════════════════════════════════════
+   APPLE LIQUID GLASS DESIGN SYSTEM
+═══════════════════════════════════════════ */
+:root {
+  --glass:        rgba(255,255,255,0.06);
+  --glass-mid:    rgba(255,255,255,0.10);
+  --glass-light:  rgba(255,255,255,0.14);
+  --border:       rgba(255,255,255,0.12);
+  --border-top:   rgba(255,255,255,0.28);
+  --shadow:       0 24px 64px rgba(0,0,0,0.55);
+  --inner:        inset 0 1px 0 rgba(255,255,255,0.22);
+
+  --blue:   #0A84FF;
+  --purple: #BF5AF2;
+  --green:  #30D158;
+  --orange: #FF9F0A;
+  --red:    #FF453A;
+  --teal:   #5AC8FA;
+
+  --t1: rgba(255,255,255,0.96);
+  --t2: rgba(255,255,255,0.60);
+  --t3: rgba(255,255,255,0.34);
+
+  --r-xl: 24px;
+  --r-lg: 18px;
+  --r-md: 12px;
+  --r-sm:  8px;
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+
+body {
+  background: #030408;
+  color: var(--t1);
+  font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Background Scene ── */
+.scene {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(ellipse 70% 60% at 15% 10%, rgba(10,132,255,.14) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 55% at 85% 75%, rgba(191,90,242,.11) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 40% at 55% 100%, rgba(48,209,88,.07) 0%, transparent 55%),
+    #030408;
+}
+.scene::after {
+  content: '';
+  position: absolute; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.03'/%3E%3C/svg%3E");
+}
+
+/* ── Glass Primitives ── */
+.g {
+  background: var(--glass);
+  backdrop-filter: blur(32px) saturate(200%);
+  -webkit-backdrop-filter: blur(32px) saturate(200%);
+  border: 1px solid var(--border);
+  border-top-color: var(--border-top);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow), var(--inner);
+}
+.g-btn {
+  background: var(--glass-mid);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  border-top-color: rgba(255,255,255,0.2);
+  border-radius: var(--r-xl);
+  box-shadow: 0 4px 16px rgba(0,0,0,.3), var(--inner);
+}
+
+/* ── App Container ── */
+#app {
+  position: relative; z-index: 1;
+  height: 100vh; overflow-y: auto;
+  scroll-behavior: smooth;
+}
+
+/* ── Top Nav ── */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  height: 52px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 20px;
+  background: rgba(3,4,8,.65);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.logo {
+  font-size: 17px; font-weight: 700; letter-spacing: -.4px;
+  display: flex; align-items: center; gap: 7px;
+}
+.logo-icon {
+  width: 28px; height: 28px; border-radius: 8px;
+  background: linear-gradient(135deg, var(--blue), var(--purple));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+  box-shadow: 0 2px 8px rgba(10,132,255,.4);
+}
+.nav-pills { display: flex; gap: 2px; }
+.nav-pill {
+  padding: 5px 14px; border-radius: 20px;
+  border: none; cursor: pointer; background: transparent;
+  color: var(--t2); font-size: 13px; font-weight: 500;
+  font-family: inherit; transition: all .25s var(--ease);
+}
+.nav-pill:hover, .nav-pill.active {
+  background: var(--glass-light); color: var(--t1);
+}
+
+/* ── Screens ── */
+.screen {
+  display: none; min-height: 100vh;
+  padding: 64px 20px 40px;
+  flex-direction: column; align-items: center;
+}
+.screen.active {
+  display: flex;
+  animation: screenIn .35s var(--ease);
+}
+@keyframes screenIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ═══════════════════════════════════════════
+   UPLOAD SCREEN
+═══════════════════════════════════════════ */
+#screen-upload { justify-content: center; gap: 28px; }
+
+.hero { text-align: center; }
+.hero-orb {
+  width: 72px; height: 72px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--blue), var(--purple));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 32px; margin: 0 auto 18px;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.15), 0 16px 40px rgba(10,132,255,.35);
+  animation: pulse 3s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%,100% { box-shadow: 0 0 0 1px rgba(255,255,255,.15), 0 16px 40px rgba(10,132,255,.35); }
+  50%      { box-shadow: 0 0 0 1px rgba(255,255,255,.20), 0 16px 56px rgba(10,132,255,.55); }
+}
+.hero h1 {
+  font-size: 38px; font-weight: 700; letter-spacing: -.8px;
+  background: linear-gradient(135deg, #fff 0%, rgba(255,255,255,.65) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 10px;
+}
+.hero p { color: var(--t2); font-size: 16px; max-width: 360px; margin: 0 auto; line-height: 1.5; }
+
+.card { width: 100%; max-width: 500px; padding: 28px; }
+
+/* Drop zone */
+.drop-zone {
+  position: relative; overflow: hidden;
+  border: 1.5px dashed rgba(255,255,255,.18);
+  border-radius: var(--r-lg); padding: 44px 24px;
+  text-align: center; cursor: pointer;
+  transition: all .25s var(--ease);
+}
+.drop-zone::before {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(circle at 50% 80%, rgba(10,132,255,.08), transparent 70%);
+  opacity: 0; transition: opacity .3s;
+}
+.drop-zone:hover::before, .drop-zone.over::before { opacity: 1; }
+.drop-zone:hover, .drop-zone.over {
+  border-color: var(--blue);
+  background: rgba(10,132,255,.04);
+}
+.drop-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.dz-emoji { font-size: 42px; display: block; margin-bottom: 12px;
+  filter: drop-shadow(0 4px 12px rgba(10,132,255,.3)); }
+.dz-title { font-size: 17px; font-weight: 600; margin-bottom: 5px; }
+.dz-hint  { font-size: 13px; color: var(--t2); }
+
+.file-badge {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  background: rgba(48,209,88,.09);
+  border: 1px solid rgba(48,209,88,.22);
+  margin-top: 10px;
+}
+.fb-icon { font-size: 22px; flex-shrink: 0; }
+.fb-name { flex: 1; font-size: 13px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fb-clear {
+  background: none; border: none; cursor: pointer;
+  color: var(--t3); font-size: 16px; padding: 2px 4px;
+  border-radius: 4px; transition: color .2s;
+}
+.fb-clear:hover { color: var(--t1); }
+
+/* Voice grid */
+.section-label {
+  font-size: 11px; font-weight: 600; letter-spacing: .7px;
+  text-transform: uppercase; color: var(--t3);
+  margin-top: 20px; margin-bottom: 8px;
+}
+.voice-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.vc {
+  padding: 10px 13px; border-radius: var(--r-md);
+  border: 1px solid var(--border); background: var(--glass);
+  cursor: pointer; transition: all .2s var(--ease);
+}
+.vc:hover { border-color: rgba(255,255,255,.22); background: var(--glass-mid); }
+.vc.sel { border-color: var(--blue); background: rgba(10,132,255,.1); }
+.vc-name { font-size: 13px; font-weight: 600; }
+.vc-sub  { font-size: 11px; color: var(--t2); margin-top: 1px; }
+
+.btn-gen {
+  width: 100%; margin-top: 20px; padding: 15px;
+  border-radius: var(--r-lg); border: none; cursor: pointer;
+  font-size: 15px; font-weight: 700; font-family: inherit;
+  background: var(--blue); color: #fff;
+  box-shadow: 0 4px 24px rgba(10,132,255,.45);
+  transition: all .25s var(--ease);
+}
+.btn-gen:not(:disabled):hover {
+  background: #1a8eff;
+  box-shadow: 0 6px 32px rgba(10,132,255,.6);
+  transform: translateY(-1px);
+}
+.btn-gen:not(:disabled):active { transform: scale(.98); }
+.btn-gen:disabled { opacity: .35; cursor: not-allowed; }
+
+/* ═══════════════════════════════════════════
+   PROCESSING SCREEN
+═══════════════════════════════════════════ */
+#screen-processing { justify-content: center; }
+
+.proc-card { width: 100%; max-width: 460px; padding: 36px; }
+.proc-label { font-size: 11px; font-weight: 600; letter-spacing: .7px;
+  text-transform: uppercase; color: var(--blue); }
+.proc-title { font-size: 21px; font-weight: 700; letter-spacing: -.3px;
+  margin-top: 6px; margin-bottom: 28px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.step { display: flex; align-items: flex-start; gap: 13px; padding: 13px 0;
+  border-bottom: 1px solid rgba(255,255,255,.05); transition: all .3s var(--ease); }
+.step:last-child { border-bottom: none; }
+.step-dot {
+  width: 34px; height: 34px; flex-shrink: 0; border-radius: 50%;
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1);
+  display: flex; align-items: center; justify-content: center; font-size: 15px;
+  transition: all .3s var(--ease);
+}
+.step.running .step-dot { background: rgba(10,132,255,.18); border-color: var(--blue); }
+.step.done    .step-dot { background: rgba(48,209,88,.18);  border-color: var(--green); }
+.step.fail    .step-dot { background: rgba(255,69,58,.18);  border-color: var(--red); }
+.step-name { font-size: 14px; font-weight: 600; line-height: 1.3; }
+.step-info { font-size: 12px; color: var(--t3); margin-top: 2px; }
+
+/* Spinner */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin {
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,.12);
+  border-top-color: var(--blue);
+  animation: spin .7s linear infinite;
+}
+
+.pbar-wrap {
+  height: 3px; border-radius: 2px;
+  background: rgba(255,255,255,.08); overflow: hidden;
+  margin-top: 22px;
+}
+.pbar {
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg, var(--blue), var(--purple));
+  border-radius: 2px; transition: width .35s var(--ease);
+}
+.pct-label {
+  text-align: center; font-size: 12px; color: var(--t3);
+  margin-top: 8px; font-variant-numeric: tabular-nums;
+}
+
+.btn-cancel {
+  width: 100%; margin-top: 20px; padding: 12px;
+  border-radius: var(--r-md); border: 1px solid var(--border);
+  background: var(--glass-mid); color: var(--t2);
+  font-size: 14px; font-weight: 500; font-family: inherit;
+  cursor: pointer; transition: all .2s var(--ease);
+}
+.btn-cancel:hover { color: var(--t1); background: var(--glass-light); }
+
+/* ═══════════════════════════════════════════
+   PLAYER SCREEN
+═══════════════════════════════════════════ */
+#screen-player { justify-content: flex-start; align-items: center; padding-top: 68px; }
+
+.player-wrap { width: 100%; max-width: 520px; padding: 12px 16px 40px; }
+
+.art-frame {
+  width: 180px; height: 180px; border-radius: 20px;
+  margin: 0 auto 22px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 64px;
+  box-shadow: 0 24px 64px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.08);
+  animation: artIn .5s var(--ease);
+}
+@keyframes artIn {
+  from { opacity: 0; transform: scale(.9) translateY(10px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.player-card { padding: 24px 22px; }
+
+.track-title { font-size: 20px; font-weight: 700; letter-spacing: -.3px; text-align: center;
+  margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.track-sub { font-size: 13px; color: var(--t2); text-align: center; margin-bottom: 20px; }
+
+/* Waveform */
+#waveCanvas {
+  width: 100%; height: 60px; border-radius: 10px;
+  cursor: pointer; display: block; margin-bottom: 10px;
+}
+.time-row {
+  display: flex; justify-content: space-between;
+  font-size: 11px; color: var(--t3); margin-bottom: 22px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Controls */
+.controls {
+  display: flex; align-items: center; justify-content: center;
+  gap: 10px; margin-bottom: 18px;
+}
+.ctrl-btn {
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: none; cursor: pointer;
+  color: var(--t2); font-size: 12px; font-weight: 600;
+  font-family: inherit;
+  padding: 8px 11px; border-radius: var(--r-sm);
+  transition: all .2s var(--ease);
+}
+.ctrl-btn:hover { color: var(--t1); background: var(--glass-mid); }
+
+.play-btn {
+  width: 60px; height: 60px; border-radius: 50%;
+  border: none; cursor: pointer;
+  background: var(--blue); color: #fff; font-size: 22px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 8px 28px rgba(10,132,255,.5);
+  transition: all .2s var(--ease);
+}
+.play-btn:hover { transform: scale(1.06); box-shadow: 0 12px 36px rgba(10,132,255,.65); }
+.play-btn:active { transform: scale(.96); }
+
+.speed-row { text-align: center; margin-bottom: 18px; }
+.speed-sel {
+  background: var(--glass-mid); border: 1px solid var(--border);
+  color: var(--t1); border-radius: 20px;
+  padding: 5px 14px; font-size: 12px; font-family: inherit;
+  cursor: pointer; outline: none; transition: all .2s;
+}
+.speed-sel:hover { background: var(--glass-light); }
+
+.action-row { display: flex; gap: 7px; }
+.act-btn {
+  flex: 1; padding: 11px 8px;
+  border-radius: var(--r-md); border: 1px solid var(--border);
+  background: var(--glass-mid); color: var(--t1);
+  font-size: 12px; font-weight: 600; font-family: inherit;
+  cursor: pointer; text-align: center;
+  transition: all .2s var(--ease);
+}
+.act-btn:hover { background: var(--glass-light); }
+.act-btn.primary {
+  background: rgba(10,132,255,.18); border-color: rgba(10,132,255,.35); color: var(--blue);
+}
+.act-btn.primary:hover { background: rgba(10,132,255,.28); }
+
+/* ═══════════════════════════════════════════
+   LIBRARY SCREEN
+═══════════════════════════════════════════ */
+#screen-library {
+  justify-content: flex-start; align-items: stretch;
+  padding-top: 64px; max-width: 640px; width: 100%; margin: 0 auto;
+}
+
+.lib-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 16px 10px;
+}
+.lib-title { font-size: 22px; font-weight: 700; letter-spacing: -.3px; }
+.btn-new {
+  padding: 7px 15px; border-radius: 20px;
+  border: none; cursor: pointer;
+  background: var(--blue); color: #fff;
+  font-size: 13px; font-weight: 600; font-family: inherit;
+  box-shadow: 0 2px 12px rgba(10,132,255,.4);
+  transition: all .2s var(--ease);
+}
+.btn-new:hover { background: #1a8eff; }
+
+.book-list { display: flex; flex-direction: column; gap: 6px; padding: 0 12px 60px; }
+
+.book-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 13px 14px; cursor: pointer;
+  transition: all .2s var(--ease);
+}
+.book-row:hover { background: rgba(255,255,255,.09); }
+.book-thumb {
+  width: 48px; height: 48px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px;
+  box-shadow: 0 4px 14px rgba(0,0,0,.4);
+}
+.book-text { flex: 1; min-width: 0; }
+.book-name { font-size: 15px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.book-meta { font-size: 11px; color: var(--t2); margin-top: 2px; }
+.book-btns { display: flex; gap: 5px; }
+.bk-btn {
+  width: 32px; height: 32px; border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.1);
+  background: rgba(255,255,255,.05); color: var(--t2);
+  cursor: pointer; font-size: 13px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .2s var(--ease);
+}
+.bk-btn:hover { background: rgba(255,255,255,.15); color: var(--t1); }
+.bk-btn.del:hover { background: rgba(255,69,58,.2); color: var(--red); border-color: rgba(255,69,58,.3); }
+
+.empty-state {
+  text-align: center; padding: 70px 20px; color: var(--t3);
+}
+.empty-state .em { font-size: 52px; margin-bottom: 14px; }
+.empty-state p { font-size: 15px; line-height: 1.5; }
+
+/* ── Toast ── */
+.toast {
+  position: fixed; bottom: 28px; left: 50%;
+  transform: translateX(-50%) translateY(90px);
+  background: var(--glass-light);
+  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--border); border-radius: 28px;
+  padding: 11px 20px; font-size: 13px; font-weight: 500;
+  box-shadow: 0 8px 28px rgba(0,0,0,.5); z-index: 999;
+  transition: transform .3s var(--ease);
+  white-space: nowrap; pointer-events: none;
+}
+.toast.on { transform: translateX(-50%) translateY(0); }
+
+/* ── Responsive ── */
+@media (max-width: 480px) {
+  .hero h1 { font-size: 30px; }
+  .voice-grid { grid-template-columns: 1fr; }
+  .art-frame { width: 150px; height: 150px; font-size: 52px; }
+  .action-row { flex-wrap: wrap; }
+  .act-btn { min-width: calc(50% - 4px); }
+}
+</style>
+</head>
+
+<body>
+<div class="scene"></div>
+
+<!-- ─── NAV ─── -->
+<nav>
+  <div class="logo">
+    <div class="logo-icon">🎧</div>
+    Narrate
+  </div>
+  <div class="nav-pills">
+    <button class="nav-pill active" onclick="goto('upload')">New</button>
+    <button class="nav-pill" onclick="goto('library')">Library</button>
+  </div>
+</nav>
+
+<div id="app">
+
+<!-- ═══════ UPLOAD ═══════ -->
+<div id="screen-upload" class="screen active">
+  <div class="hero">
+    <div class="hero-orb">📖</div>
+    <h1>Ebook to Audiobook</h1>
+    <p>Drop any PDF and get a studio-quality AI narration in minutes.</p>
+  </div>
+
+  <div class="card g">
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" accept=".pdf">
+      <span class="dz-emoji">📄</span>
+      <div class="dz-title">Drop your PDF here</div>
+      <div class="dz-hint">or click to browse files</div>
+    </div>
+    <div id="fileBadge" style="display:none" class="file-badge">
+      <span class="fb-icon">📗</span>
+      <span class="fb-name" id="fileName"></span>
+      <button class="fb-clear" onclick="clearFile()">✕</button>
+    </div>
+
+    <div class="section-label">AI Voice</div>
+    <div class="voice-grid" id="voiceGrid">
+      <div class="vc sel" data-v="Brian">
+        <div class="vc-name">Brian</div>
+        <div class="vc-sub">British · Male</div>
+      </div>
+      <div class="vc" data-v="Amy">
+        <div class="vc-name">Amy</div>
+        <div class="vc-sub">British · Female</div>
+      </div>
+      <div class="vc" data-v="Matthew">
+        <div class="vc-name">Matthew</div>
+        <div class="vc-sub">American · Male</div>
+      </div>
+      <div class="vc" data-v="Joanna">
+        <div class="vc-name">Joanna</div>
+        <div class="vc-sub">American · Female</div>
+      </div>
+      <div class="vc" data-v="Joey">
+        <div class="vc-name">Joey</div>
+        <div class="vc-sub">American · Male</div>
+      </div>
+      <div class="vc" data-v="Salli">
+        <div class="vc-name">Salli</div>
+        <div class="vc-sub">American · Female</div>
+      </div>
+    </div>
+
+    <button class="btn-gen" id="genBtn" disabled onclick="startGen()">
+      ✨ Generate Audiobook
+    </button>
+  </div>
+</div>
+
+<!-- ═══════ PROCESSING ═══════ -->
+<div id="screen-processing" class="screen">
+  <div class="proc-card g">
+    <div class="proc-label">Generating</div>
+    <div class="proc-title" id="procTitle">Preparing your audiobook…</div>
+
+    <div class="step" id="s-extract">
+      <div class="step-dot">📄</div>
+      <div>
+        <div class="step-name">Extract Text</div>
+        <div class="step-info" id="si-extract">Waiting…</div>
+      </div>
+    </div>
+    <div class="step" id="s-clean">
+      <div class="step-dot">✏️</div>
+      <div>
+        <div class="step-name">Clean for Audio</div>
+        <div class="step-info" id="si-clean">Waiting…</div>
+      </div>
+    </div>
+    <div class="step" id="s-tts">
+      <div class="step-dot">🎙️</div>
+      <div>
+        <div class="step-name">Generate Voice</div>
+        <div class="step-info" id="si-tts">Waiting…</div>
+      </div>
+    </div>
+    <div class="step" id="s-save">
+      <div class="step-dot">💾</div>
+      <div>
+        <div class="step-name">Save Audiobook</div>
+        <div class="step-info" id="si-save">Waiting…</div>
+      </div>
+    </div>
+
+    <div class="pbar-wrap"><div class="pbar" id="pbar"></div></div>
+    <div class="pct-label" id="pctLabel">0%</div>
+
+    <button class="btn-cancel" onclick="cancel()">Cancel</button>
+  </div>
+</div>
+
+<!-- ═══════ PLAYER ═══════ -->
+<div id="screen-player" class="screen">
+  <div class="player-wrap">
+    <div class="art-frame" id="artFrame" style="background:linear-gradient(135deg,#0A84FF,#BF5AF2)">🎧</div>
+
+    <div class="player-card g">
+      <div class="track-title" id="trackTitle">Untitled</div>
+      <div class="track-sub"  id="trackSub">AI Narration</div>
+
+      <canvas id="waveCanvas"></canvas>
+      <div class="time-row">
+        <span id="tElapsed">0:00</span>
+        <span id="tTotal">0:00</span>
+      </div>
+
+      <div class="controls">
+        <button class="ctrl-btn" onclick="skip(-30)">⟨30</button>
+        <button class="ctrl-btn" onclick="skip(-10)">⟨10</button>
+        <button class="play-btn" id="playBtn" onclick="togglePlay()">▶</button>
+        <button class="ctrl-btn" onclick="skip(10)">10⟩</button>
+        <button class="ctrl-btn" onclick="skip(30)">30⟩</button>
+      </div>
+
+      <div class="speed-row">
+        <select class="speed-sel" id="speedSel" onchange="setSpeed()">
+          <option value="0.75">0.75×</option>
+          <option value="1" selected>1×</option>
+          <option value="1.25">1.25×</option>
+          <option value="1.5">1.5×</option>
+          <option value="2">2×</option>
+        </select>
+      </div>
+
+      <div class="action-row">
+        <button class="act-btn primary" onclick="dlAudio()">⬇ Download</button>
+        <button class="act-btn" onclick="goto('library')">📚 Library</button>
+        <button class="act-btn" onclick="goto('upload')">＋ New</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ LIBRARY ═══════ -->
+<div id="screen-library" class="screen">
+  <div class="lib-header" style="width:100%">
+    <div class="lib-title">My Audiobooks</div>
+    <button class="btn-new" onclick="goto('upload')">+ New</button>
+  </div>
+  <div class="book-list" id="bookList" style="width:100%"></div>
+</div>
+
+</div><!-- #app -->
+
+<div class="toast" id="toast"></div>
+<audio id="audio" style="display:none"></audio>
+
+<script>
+/* ─────────────────────────────────────────
+   PDF.js worker
+───────────────────────────────────────── */
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+/* ─────────────────────────────────────────
+   State
+───────────────────────────────────────── */
+const S = {
+  file: null,
+  voice: 'Brian',
+  cancelled: false,
+  currentBook: null,
+  audioURL: null,
+};
+
+/* ─────────────────────────────────────────
+   IndexedDB
+───────────────────────────────────────── */
+let idb;
+const IDB_NAME = 'NarrateDB', IDB_VER = 1, STORE = 'books';
+
+function dbOpen() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(IDB_NAME, IDB_VER);
+    r.onupgradeneeded = e => e.target.result.createObjectStore(STORE, { keyPath:'id', autoIncrement:true });
+    r.onsuccess = e => { idb = e.target.result; res(); };
+    r.onerror   = () => rej(r.error);
+  });
+}
+function dbAdd(book) {
+  return new Promise((res, rej) => {
+    const tx = idb.transaction(STORE,'readwrite');
+    const r  = tx.objectStore(STORE).add(book);
+    r.onsuccess = () => res(r.result);
+    r.onerror   = () => rej(r.error);
+  });
+}
+function dbAll() {
+  return new Promise((res, rej) => {
+    const tx = idb.transaction(STORE,'readonly');
+    const r  = tx.objectStore(STORE).getAll();
+    r.onsuccess = () => res(r.result);
+    r.onerror   = () => rej(r.error);
+  });
+}
+function dbDel(id) {
+  return new Promise((res, rej) => {
+    const tx = idb.transaction(STORE,'readwrite');
+    const r  = tx.objectStore(STORE).delete(id);
+    r.onsuccess = () => res();
+    r.onerror   = () => rej(r.error);
+  });
+}
+
+/* ─────────────────────────────────────────
+   UI helpers
+───────────────────────────────────────── */
+function goto(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  document.querySelectorAll('.nav-pill').forEach((b,i) => {
+    b.classList.toggle('active', (i===0&&name==='upload')||(i===1&&name==='library'));
+  });
+  if (name === 'library') renderLib();
+}
+
+let toastTid;
+function toast(msg, ms=3200) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('on');
+  clearTimeout(toastTid);
+  toastTid = setTimeout(() => el.classList.remove('on'), ms);
+}
+
+function stepSet(id, state, info) {
+  const el  = document.getElementById('s-' + id);
+  const dot = el.querySelector('.step-dot');
+  const si  = document.getElementById('si-' + id);
+  el.className = 'step ' + state;
+  if (info !== undefined) si.textContent = info;
+  if      (state === 'running') dot.innerHTML = '<div class="spin"></div>';
+  else if (state === 'done')    dot.textContent = '✓';
+  else if (state === 'fail')    dot.textContent = '✕';
+  else {
+    const icons = { extract:'📄', clean:'✏️', tts:'🎙️', save:'💾' };
+    dot.textContent = icons[id] || '·';
+  }
+}
+
+function prog(pct, lbl) {
+  document.getElementById('pbar').style.width = Math.min(100, pct) + '%';
+  document.getElementById('pctLabel').textContent = lbl || Math.round(pct) + '%';
+}
+
+/* ─────────────────────────────────────────
+   File handling
+───────────────────────────────────────── */
+const $drop = document.getElementById('dropZone');
+const $fi   = document.getElementById('fileInput');
+
+$fi.addEventListener('change', e => e.target.files[0] && pickFile(e.target.files[0]));
+$drop.addEventListener('dragover', e => { e.preventDefault(); $drop.classList.add('over'); });
+$drop.addEventListener('dragleave', ()  => $drop.classList.remove('over'));
+$drop.addEventListener('drop', e => {
+  e.preventDefault(); $drop.classList.remove('over');
+  const f = e.dataTransfer.files[0];
+  f && f.type === 'application/pdf' ? pickFile(f) : toast('⚠️ Please drop a PDF file');
+});
+
+function pickFile(f) {
+  S.file = f;
+  document.getElementById('fileName').textContent = f.name;
+  document.getElementById('fileBadge').style.display = 'flex';
+  document.getElementById('genBtn').disabled = false;
+  toast('📄 ' + f.name);
+}
+function clearFile() {
+  S.file = null; $fi.value = '';
+  document.getElementById('fileBadge').style.display = 'none';
+  document.getElementById('genBtn').disabled = true;
+}
+
+document.getElementById('voiceGrid').addEventListener('click', e => {
+  const chip = e.target.closest('.vc');
+  if (!chip) return;
+  document.querySelectorAll('.vc').forEach(c => c.classList.remove('sel'));
+  chip.classList.add('sel');
+  S.voice = chip.dataset.v;
+});
+
+/* ─────────────────────────────────────────
+   PDF Extraction
+───────────────────────────────────────── */
+async function extractPDF(file) {
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  const n   = pdf.numPages;
+  let out   = '';
+  for (let i = 1; i <= n; i++) {
+    const pg  = await pdf.getPage(i);
+    const tc  = await pg.getTextContent();
+    out += tc.items.map(x => x.str).join(' ') + '\n';
+    if (i % 8 === 0) {
+      stepSet('extract','running',`Page ${i} / ${n}`);
+      prog(2 + (i/n)*20, `Extracting ${Math.round(i/n*100)}%…`);
+    }
+    if (S.cancelled) throw new Error('cancelled');
+  }
+  if (!out.trim()) throw new Error('No extractable text found. This PDF may be scanned/image-based.');
+  return out;
+}
+
+/* ─────────────────────────────────────────
+   Text Cleaning
+───────────────────────────────────────── */
+function cleanText(raw) {
+  let t = raw;
+  t = t.replace(/(\w)-\s*\n\s*/g, '$1');           // fix hyphenated line breaks
+  t = t.replace(/\r\n|\r/g, '\n');
+  t = t.replace(/^\s*\d+\s*$/gm, '');              // page numbers
+  // Remove repeated short strings (headers/footers)
+  const lines = t.split('\n');
+  const freq  = {};
+  lines.forEach(l => { const s = l.trim(); if (s.length > 0 && s.length < 80) freq[s] = (freq[s]||0)+1; });
+  const drop  = new Set(Object.entries(freq).filter(([,v]) => v > 4).map(([k]) => k));
+  t = lines.filter(l => !drop.has(l.trim())).join('\n');
+  t = t.replace(/https?:\/\/\S+/g, '');            // URLs
+  t = t.replace(/[\w.+\-]+@[\w\-]+\.[a-z]{2,}/gi,''); // emails
+  t = t.replace(/^#{1,6}\s*/gm, '');               // markdown headers
+  t = t.replace(/\*{1,3}(.*?)\*{1,3}/g, '$1');     // bold/italic
+  t = t.replace(/ {2,}/g, ' ');
+  t = t.replace(/\n{3,}/g, '\n\n');
+  t = t.replace(/\n\n+/g, '. ');
+  t = t.replace(/\n/g, ' ');
+  t = t.replace(/([a-z])\s{2}([A-Z])/g, '$1. $2');
+  t = t.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+  t = t.replace(/\.{2,}/g, '.');
+  t = t.replace(/\s+/g, ' ').trim();
+  return t;
+}
+
+/* ─────────────────────────────────────────
+   Text Chunking (sentence-aware)
+───────────────────────────────────────── */
+function chunk(text, max=170) {
+  const chunks = [];
+  let rem = text.trim();
+  while (rem.length > 0) {
+    if (rem.length <= max) { chunks.push(rem); break; }
+    const w = rem.substring(0, max);
+    let bp  = -1;
+    const sentEnd = Math.max(w.lastIndexOf('. '), w.lastIndexOf('! '), w.lastIndexOf('? '));
+    if (sentEnd > max * 0.35) { bp = sentEnd + 2; }
+    else {
+      const phraseEnd = Math.max(w.lastIndexOf(', '), w.lastIndexOf('; '));
+      if (phraseEnd > max * 0.35) { bp = phraseEnd + 2; }
+      else {
+        const wordEnd = w.lastIndexOf(' ');
+        bp = wordEnd > 0 ? wordEnd + 1 : max;
+      }
+    }
+    const piece = rem.substring(0, bp).trim();
+    if (piece) chunks.push(piece);
+    rem = rem.substring(bp).trim();
+  }
+  return chunks.filter(c => c.length > 0);
+}
+
+/* ─────────────────────────────────────────
+   StreamElements TTS (Amazon Polly Neural)
+   Best free AI voice API — no auth needed
+───────────────────────────────────────── */
+const TTS_URL = 'https://api.streamelements.com/kappa/v2/speech';
+const CONCUR  = 5; // parallel requests
+
+async function fetchChunk(text, voice) {
+  const url = `${TTS_URL}?voice=${voice}&text=${encodeURIComponent(text)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.arrayBuffer();
+}
+
+async function genTTS(text, voice, onProg) {
+  const chunks = chunk(text, 165);
+  const total  = chunks.length;
+  const bufs   = new Array(total).fill(null);
+  let done     = 0;
+
+  for (let i = 0; i < total; i += CONCUR) {
+    if (S.cancelled) throw new Error('cancelled');
+    const batch = chunks.slice(i, i + CONCUR);
+    await Promise.all(batch.map(async (c, j) => {
+      let tries = 3, delay = 800;
+      while (tries-- > 0) {
+        try {
+          bufs[i + j] = await fetchChunk(c, voice);
+          break;
+        } catch (e) {
+          if (tries === 0) console.warn('Chunk failed:', c.slice(0,40));
+          else await new Promise(r => setTimeout(r, delay *= 1.5));
+        }
+      }
+      done++;
+      onProg(done / total);
+      document.getElementById('si-tts').textContent = `${done} / ${total} segments`;
+      if (S.cancelled) throw new Error('cancelled');
+    }));
+  }
+
+  const valid = bufs.filter(Boolean);
+  if (!valid.length) throw new Error('TTS failed — all chunks empty');
+  return new Blob(valid, { type: 'audio/mpeg' });
+}
+
+/* ─────────────────────────────────────────
+   Main generation pipeline
+───────────────────────────────────────── */
+async function startGen() {
+  if (!S.file) return;
+  S.cancelled = false;
+
+  const title = S.file.name.replace(/\.pdf$/i,'').replace(/[-_]/g,' ').trim();
+  document.getElementById('procTitle').textContent = `"${title}"`;
+  prog(0); stepSet('extract','',''); stepSet('clean','',''); stepSet('tts','',''); stepSet('save','','');
+  goto('processing');
+
+  try {
+    /* 1 — Extract */
+    stepSet('extract','running','Reading PDF…'); prog(2,'Reading PDF…');
+    const raw = await extractPDF(S.file);
+    stepSet('extract','done', raw.length.toLocaleString() + ' chars extracted');
+
+    if (S.cancelled) throw new Error('cancelled');
+
+    /* 2 — Clean */
+    stepSet('clean','running','Processing…'); prog(24,'Cleaning…');
+    const clean = cleanText(raw);
+    stepSet('clean','done', clean.length.toLocaleString() + ' chars cleaned');
+
+    if (S.cancelled) throw new Error('cancelled');
+
+    /* 3 — TTS */
+    stepSet('tts','running','Starting…'); prog(28,'Generating audio…');
+    const blob = await genTTS(clean, S.voice, p => prog(28 + p*62));
+    stepSet('tts','done','All segments merged');
+    prog(92,'Saving…');
+
+    if (S.cancelled) throw new Error('cancelled');
+
+    /* 4 — Save */
+    stepSet('save','running','Writing to storage…');
+    const abuf = await blob.arrayBuffer();
+    const book = { title, voice: S.voice, date: new Date().toISOString(),
+                   size: abuf.byteLength, audio: abuf };
+    book.id = await dbAdd(book);
+    stepSet('save','done','Saved to library!');
+    prog(100,'Done!');
+
+    S.currentBook = book;
+    if (S.audioURL) URL.revokeObjectURL(S.audioURL);
+    S.audioURL = URL.createObjectURL(blob);
+
+    await sleep(600);
+    openPlayer(book, S.audioURL);
+
+  } catch (err) {
+    if (err.message === 'cancelled') {
+      toast('Generation cancelled');
+      goto('upload');
+    } else {
+      console.error(err);
+      toast('⚠️ ' + err.message, 5000);
+      document.querySelectorAll('.step.running').forEach(s => {
+        s.classList.remove('running'); s.classList.add('fail');
+        s.querySelector('.step-dot').textContent = '✕';
+      });
+    }
+  }
+}
+
+function cancel() { S.cancelled = true; }
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+/* ─────────────────────────────────────────
+   Audio Player
+───────────────────────────────────────── */
+const $audio = document.getElementById('audio');
+let raf = null, audioCtx = null, analyser = null, waveConnected = false;
+
+function openPlayer(book, url) {
+  $audio.src = url;
+  $audio.playbackRate = 1;
+  document.getElementById('speedSel').value = '1';
+
+  const c = bookColor(book.title);
+  document.getElementById('artFrame').style.background = c;
+  document.getElementById('trackTitle').textContent = book.title;
+  document.getElementById('trackSub').textContent =
+    `${book.voice} · ${fmtSize(book.size)} · AI Narration`;
+
+  $audio.onloadedmetadata = () => {
+    document.getElementById('tTotal').textContent = fmtTime($audio.duration);
+  };
+  $audio.ontimeupdate = () => {
+    document.getElementById('tElapsed').textContent = fmtTime($audio.currentTime);
+    if ($audio.duration)
+      document.getElementById('tTotal').textContent = fmtTime($audio.duration);
+  };
+  $audio.onended = () => {
+    document.getElementById('playBtn').textContent = '▶';
+    cancelAnimationFrame(raf);
+  };
+
+  goto('player');
+  $audio.play().then(() => {
+    document.getElementById('playBtn').textContent = '⏸';
+    animWave();
+  }).catch(()=>{});
+}
+
+function togglePlay() {
+  if ($audio.paused) {
+    $audio.play(); document.getElementById('playBtn').textContent = '⏸'; animWave();
+  } else {
+    $audio.pause(); document.getElementById('playBtn').textContent = '▶'; cancelAnimationFrame(raf);
+  }
+}
+function skip(s) { $audio.currentTime = Math.max(0, Math.min($audio.duration||0, $audio.currentTime+s)); }
+function setSpeed() { $audio.playbackRate = parseFloat(document.getElementById('speedSel').value); }
+
+/* Waveform */
+const cv  = document.getElementById('waveCanvas');
+const c2d = cv.getContext('2d');
+
+function setupAnalyser() {
+  if (waveConnected) return;
+  try {
+    audioCtx  = new (window.AudioContext||window.webkitAudioContext)();
+    analyser  = audioCtx.createAnalyser();
+    analyser.fftSize = 128;
+    const src = audioCtx.createMediaElementSource($audio);
+    src.connect(analyser);
+    analyser.connect(audioCtx.destination);
+    waveConnected = true;
+  } catch(e) {}
+}
+
+function animWave() {
+  setupAnalyser();
+  const W = cv.clientWidth, H = cv.clientHeight;
+  cv.width  = W * devicePixelRatio;
+  cv.height = H * devicePixelRatio;
+  c2d.scale(devicePixelRatio, devicePixelRatio);
+
+  function frame() {
+    raf = requestAnimationFrame(frame);
+    c2d.clearRect(0, 0, W, H);
+
+    if (analyser) {
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      analyser.getByteFrequencyData(data);
+      const bw = W / data.length;
+      const g  = c2d.createLinearGradient(0,0,W,0);
+      g.addColorStop(0, '#0A84FF'); g.addColorStop(1, '#BF5AF2');
+      c2d.fillStyle = g;
+      data.forEach((v, i) => {
+        const bh = (v/255) * H * 0.9;
+        c2d.fillRect(i*bw+1, (H-bh)/2, bw-1, bh);
+      });
+    } else {
+      drawStaticBars(W, H);
+    }
+  }
+  cancelAnimationFrame(raf);
+  frame();
+}
+
+function drawStaticBars(W, H) {
+  const bars = 48, bw = W/bars - 1;
+  const pct  = $audio.duration ? $audio.currentTime/$audio.duration : 0;
+  for (let i=0; i<bars; i++) {
+    const frac = i/bars;
+    const h = (Math.sin(i*.35+1)*0.25 + Math.sin(i*.8)*0.2 + .55) * H*.75;
+    c2d.fillStyle = frac <= pct ? '#0A84FF' : 'rgba(255,255,255,0.09)';
+    c2d.beginPath();
+    c2d.roundRect(i*(bw+1), (H-h)/2, bw, h, 2);
+    c2d.fill();
+  }
+}
+
+cv.addEventListener('click', e => {
+  const r = cv.getBoundingClientRect();
+  const p = (e.clientX - r.left) / r.width;
+  if ($audio.duration) $audio.currentTime = p * $audio.duration;
+});
+
+function dlAudio() {
+  if (!S.audioURL) return;
+  const a = document.createElement('a');
+  a.href = S.audioURL;
+  a.download = (S.currentBook?.title||'audiobook') + '.mp3';
+  a.click();
+  toast('⬇ Downloading MP3…');
+}
+
+/* ─────────────────────────────────────────
+   Library
+───────────────────────────────────────── */
+async function renderLib() {
+  const books = (await dbAll()).sort((a,b) => new Date(b.date)-new Date(a.date));
+  const c = document.getElementById('bookList');
+
+  if (!books.length) {
+    c.innerHTML = `<div class="empty-state">
+      <div class="em">🎧</div>
+      <p>No audiobooks yet.<br>Create your first one!</p>
+    </div>`;
+    return;
+  }
+
+  c.innerHTML = books.map(b => `
+    <div class="book-row g" onclick="playLib(${b.id})">
+      <div class="book-thumb" style="background:${bookColor(b.title)}">🎧</div>
+      <div class="book-text">
+        <div class="book-name">${esc(b.title)}</div>
+        <div class="book-meta">${b.voice} · ${fmtDate(b.date)} · ${fmtSize(b.size)}</div>
+      </div>
+      <div class="book-btns" onclick="event.stopPropagation()">
+        <button class="bk-btn" onclick="playLib(${b.id})" title="Play">▶</button>
+        <button class="bk-btn" onclick="dlLib(${b.id})" title="Download">⬇</button>
+        <button class="bk-btn del" onclick="delLib(${b.id})" title="Delete">🗑</button>
+      </div>
+    </div>`).join('');
+}
+
+async function playLib(id) {
+  const books = await dbAll();
+  const b = books.find(x => x.id === id);
+  if (!b) return;
+  const blob = new Blob([b.audio], { type:'audio/mpeg' });
+  if (S.audioURL) URL.revokeObjectURL(S.audioURL);
+  S.audioURL = URL.createObjectURL(blob);
+  S.currentBook = b;
+  openPlayer(b, S.audioURL);
+}
+
+async function dlLib(id) {
+  const books = await dbAll();
+  const b = books.find(x => x.id === id);
+  if (!b) return;
+  const url = URL.createObjectURL(new Blob([b.audio], { type:'audio/mpeg' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = b.title + '.mp3'; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  toast('⬇ ' + b.title);
+}
+
+async function delLib(id) {
+  if (!confirm('Delete this audiobook?')) return;
+  await dbDel(id);
+  toast('🗑 Deleted');
+  renderLib();
+}
+
+/* ─────────────────────────────────────────
+   Utilities
+───────────────────────────────────────── */
+function fmtTime(s) {
+  if (!s||isNaN(s)) return '0:00';
+  const m = Math.floor(s/60), sec = Math.floor(s%60);
+  return `${m}:${sec.toString().padStart(2,'0')}`;
+}
+function fmtSize(b) {
+  if (!b) return '';
+  return b < 1048576 ? (b/1024).toFixed(0)+' KB' : (b/1048576).toFixed(1)+' MB';
+}
+function fmtDate(iso) {
+  return new Date(iso).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+}
+function esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+const GRADIENTS = [
+  'linear-gradient(135deg,#0A84FF,#BF5AF2)',
+  'linear-gradient(135deg,#30D158,#5AC8FA)',
+  'linear-gradient(135deg,#FF9F0A,#FF6B6B)',
+  'linear-gradient(135deg,#BF5AF2,#FF453A)',
+  'linear-gradient(135deg,#0A84FF,#30D158)',
+  'linear-gradient(135deg,#FF6B6B,#FF9F0A)',
+  'linear-gradient(135deg,#5AC8FA,#0A84FF)',
+  'linear-gradient(135deg,#30D158,#BF5AF2)',
+];
+function bookColor(title) {
+  let h = 0;
+  for (const c of title) h = (h*31 + c.charCodeAt(0)) | 0;
+  return GRADIENTS[Math.abs(h) % GRADIENTS.length];
+}
+
+/* ─────────────────────────────────────────
+   Init
+───────────────────────────────────────── */
+dbOpen()
+  .then(() => console.log('✅ Narrate ready'))
+  .catch(() => toast('⚠️ Storage unavailable — library disabled'));
+</script>
+</body>
+</html>
